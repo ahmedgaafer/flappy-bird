@@ -2,6 +2,7 @@
 function viewPort(id, w, h, color="black", xCells=5, yCells=5){
     this.elem = document.getElementById(id);
     this.ctx = this.elem.getContext("2d");
+    
     this.numOfXCells = xCells;
     this.numOfYCells = yCells;
     this._w = w;
@@ -19,15 +20,13 @@ viewPort.prototype.init = function(){
     this.ctx.fillRect(0, 0, this.w, this.h);
 }
 
-viewPort.prototype.setBackgroundImage = function(image){
-    const Img = new Image();
-        Img.src = image;
+viewPort.prototype.setBackgroundImage = function(Img){
         Img.onload = () => {
             this.ctx.drawImage(Img, 0, 0, this._w, this._h);
         }
 }
 
-viewPort.prototype._drawRect = function(x, y, type, image=false, color="", save = true){
+viewPort.prototype._drawRect = function(x, y, type, Img=false, color="", save = true){
     const xStart = x * this.cellWidth;
     const yStart = y * this.cellHeight;
 
@@ -35,9 +34,8 @@ viewPort.prototype._drawRect = function(x, y, type, image=false, color="", save 
     this.ctx.fillRect(xStart, yStart, this.cellWidth, this.cellHeight);
 
     if(save) this.matrix[x][y] = type;
-    if(image){
-        const Img = new Image();
-        Img.src = image;
+    if(Img){
+        
         Img.onload = () => {
             this.ctx.drawImage(Img, xStart, yStart, this.cellWidth, this.cellHeight);
         }
@@ -68,6 +66,11 @@ viewPort.prototype._flushViewPort = function(){
             bird: 1,
             wall: 2,
         }
+        this.Images = {
+            bird: new Image(),
+            wall: new Image(),
+            bg: new Image(),
+        }
         this.g = 0;
         this.vp = false;
         this.birdRenderIndex = this.bird.y;
@@ -91,11 +94,15 @@ viewPort.prototype._flushViewPort = function(){
             );
             
         this.vp.init();
+        this.Images.bird.src = this.bird.img;
+        this.Images.wall.src = this.bird.wallImg;
+        this.Images.bg.src = this.view_port.img;
+
         this.vp._drawRect(
             this.bird.x,
             this.bird.y,
             this.types.bird,
-            this.bird.img,
+            this.Images.bird,
             '',
             true
         );
@@ -121,7 +128,7 @@ viewPort.prototype._flushViewPort = function(){
 
     Game.prototype.drawBird = function(yIndex){
         this.vp.ctx.fillStyle = "";
-        this.vp._drawRect(this.bird.x, yIndex, this.types.bird, this.bird.img, '', false)
+        this.vp._drawRect(this.bird.x, yIndex, this.types.bird, this.Images.bird, '', false)
         
         if(this.exec) {
             this.exec = !this.exec; 
@@ -229,7 +236,8 @@ viewPort.prototype._flushViewPort = function(){
 
     Game.prototype.draw = async function(){
         this.vp._flushViewPort();
-        this.vp.setBackgroundImage(this.view_port.img);
+        this.vp.setBackgroundImage(this.Images.bg);
+        this.vp.ctx.globalCompositeOperation = 'copy';
         this._validateProps();
         this.writeTextToScreen();
         this.drawBird(this.birdRenderIndex);
@@ -238,13 +246,32 @@ viewPort.prototype._flushViewPort = function(){
         this.handleClick();
         if(this.collision())this.reset();
         //this.debug();
-        await this.sleep(10)
-        window.requestAnimationFrame(this.draw.bind(this, this.birdRenderIndex));
+        //await this.sleep(40)
+        //window.requestAnimationFrame(this.draw.bind(this, this.birdRenderIndex));
+    }
+
+    Game.prototype.update =  function update(time){
+        if(time-this.lastFrameTime < this.FRAME_MIN_TIME){ 
+            requestAnimationFrame(update.bind(this));
+            return; 
+        }
+        this.lastFrameTime = time; // remember the time of the rendered frame
+        // render the frame
+        this.draw();
+        requestAnimationFrame(update.bind(this)); // get next farme
+    } 
+
+    Game.prototype.frameRender = function(){
+        this.FRAMES_PER_SECOND = 10;  // Valid values are 60,30,20,15,10...
+        this.FRAME_MIN_TIME = (1000/60) * (60 / this.FRAMES_PER_SECOND) - (1000/60) * 0.5;
+        this.lastFrameTime = 0; 
+        this.update();
+
     }
 
     Game.prototype.render = function(){
         
-        window.requestAnimationFrame(this.draw.bind(this));
+        this.frameRender();
     }
 //#endregion
 
@@ -263,7 +290,7 @@ const GameOptions = {
         id: "view-port",
         width: 500,
         height: 400,
-        color: 'black',
+        color: '',
         img: 'bg.png',
     },
     cells:{
